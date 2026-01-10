@@ -52,3 +52,6 @@ verify_jwt = false
 
 [functions.whisper-transcribe]
 verify_jwt = false
+
+[functions.openai-realtime-token]
+verify_jwt = false

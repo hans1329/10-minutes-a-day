@@ -2,14 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getCharacterById } from '@/data/characters';
 import { getTopicById } from '@/data/topics';
-import { useChat } from '@/hooks/useChat';
-import { useVoice } from '@/hooks/useVoice';
+import { useRealtimeChat } from '@/hooks/useRealtimeChat';
 import { useTimer } from '@/hooks/useTimer';
+import { Message } from '@/types';
 import { ChatMessage } from '@/components/ChatMessage';
 import { LipSyncAvatar } from '@/components/LipSyncAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, X, Clock, MessageCircle, User, Mic, MicOff } from 'lucide-react';
+import { Send, X, Clock, MessageCircle, User, Phone, PhoneOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
@@ -17,7 +17,10 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
   const [showCharacter, setShowCharacter] = useState(true);
+  const [messages, setMessages] = useState<{id: number; role: 'user' | 'assistant'; content: string}[]>([]);
+  const [messageIdCounter, setMessageIdCounter] = useState(1);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
 
   const characterId = searchParams.get('character') || 'jimin';
   const topicId = searchParams.get('topic') || 'cafe-restaurant';
@@ -25,42 +28,45 @@ export default function ChatPage() {
   const character = getCharacterById(characterId);
   const topic = getTopicById(topicId);
 
-  const { messages, isLoading, sendMessage, startConversation } = useChat({
+  // Handle transcript from realtime
+  const handleTranscript = useCallback((text: string, role: 'user' | 'assistant') => {
+    if (text.trim()) {
+      setMessages(prev => [...prev, {
+        id: messageIdCounter,
+        role,
+        content: text,
+      }]);
+      setMessageIdCounter(prev => prev + 1);
+    }
+  }, [messageIdCounter]);
+
+  const [isSpeakingState, setIsSpeakingState] = useState(false);
+
+  const { 
+    isConnected, 
+    isConnecting, 
+    isSpeaking,
+    connect, 
+    disconnect, 
+    sendTextMessage,
+  } = useRealtimeChat({
     characterId,
     topicId,
-  });
-
-  // Handle transcript from voice recording
-  const handleTranscript = useCallback((text: string) => {
-    if (text.trim()) {
-      setInputText(text);
-    }
-  }, []);
-
-  const { isPlaying, isRecording, audioElement, speak, startRecording, stopRecording } = useVoice({
-    voiceId: character?.voiceId || 'EXAVITQu4vr4xnSDxMaL',
     onTranscript: handleTranscript,
+    onSpeakingChange: setIsSpeakingState,
   });
 
   const timer = useTimer({
     duration: 600,
-    onComplete: () => navigate(`/summary?character=${characterId}&topic=${topicId}`),
+    onComplete: () => {
+      disconnect();
+      navigate(`/summary?character=${characterId}&topic=${topicId}`);
+    },
   });
 
   useEffect(() => {
-    startConversation();
     timer.start();
   }, []);
-
-  // Auto-speak new assistant messages
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant') {
-        speak(lastMessage.content);
-      }
-    }
-  }, [messages.length]);
 
   useEffect(() => {
     if (!showCharacter) {
@@ -69,10 +75,19 @@ export default function ChatPage() {
   }, [messages, showCharacter]);
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !isConnected) return;
     const text = inputText;
     setInputText('');
-    await sendMessage(text);
+    
+    // Add user message to UI
+    setMessages(prev => [...prev, {
+      id: messageIdCounter,
+      role: 'user' as const,
+      content: text,
+    }]);
+    setMessageIdCounter(prev => prev + 1);
+    
+    sendTextMessage(text);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -82,11 +97,11 @@ export default function ChatPage() {
     }
   };
 
-  const handleMicClick = () => {
-    if (isRecording) {
-      stopRecording();
+  const handleCallToggle = () => {
+    if (isConnected) {
+      disconnect();
     } else {
-      startRecording();
+      connect();
     }
   };
 
@@ -95,7 +110,10 @@ export default function ChatPage() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground">
+          <button onClick={() => {
+            disconnect();
+            navigate('/');
+          }} className="text-muted-foreground hover:text-foreground">
             <X className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2">
@@ -109,6 +127,9 @@ export default function ChatPage() {
               <span className="text-2xl">{character?.avatar}</span>
             )}
             <span className="font-medium">{character?.nameKo}</span>
+            {isConnected && (
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            )}
           </div>
           <div className={cn(
             'flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium',
@@ -167,8 +188,8 @@ export default function ChatPage() {
               <LipSyncAvatar
                 avatarImage={character?.avatarImage}
                 color={character?.color}
-                audioElement={audioElement}
-                isPlaying={isPlaying}
+                audioElement={null}
+                isPlaying={isSpeakingState}
               />
               
               <h2 className="mt-6 text-2xl font-bold text-foreground">{character?.nameKo}</h2>
@@ -179,6 +200,40 @@ export default function ChatPage() {
               <div className="mt-4 px-4 py-2 bg-secondary rounded-full">
                 <span className="text-sm text-muted-foreground">주제: </span>
                 <span className="text-sm font-medium text-foreground">{topic?.titleKo}</span>
+              </div>
+              
+              {/* Connection Status */}
+              <div className="mt-6">
+                {!isConnected ? (
+                  <Button
+                    onClick={handleCallToggle}
+                    disabled={isConnecting}
+                    size="lg"
+                    className="rounded-full px-8 gap-2"
+                  >
+                    {isConnecting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        연결 중...
+                      </>
+                    ) : (
+                      <>
+                        <Phone className="w-5 h-5" />
+                        대화 시작
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleCallToggle}
+                    variant="destructive"
+                    size="lg"
+                    className="rounded-full px-8 gap-2"
+                  >
+                    <PhoneOff className="w-5 h-5" />
+                    대화 종료
+                  </Button>
+                )}
               </div>
               
               {messages.length > 0 && messages[messages.length - 1].role === 'assistant' && (
@@ -197,26 +252,18 @@ export default function ChatPage() {
                   message={msg}
                   characterEmoji={character?.avatar}
                   characterImage={character?.avatarImage}
-                  onPlayAudio={msg.role === 'assistant' ? () => speak(msg.content) : undefined}
-                  isPlaying={isPlaying}
+                  isPlaying={isSpeaking && msg.id === messages[messages.length - 1]?.id}
                 />
               ))}
-              {isLoading && (
-                <div className="flex gap-3">
-                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
-                    {character?.avatarImage ? (
-                      <img src={character.avatarImage} alt={character.nameKo} className="w-full h-full object-cover" />
-                    ) : (
-                      character?.avatar
-                    )}
-                  </div>
-                  <div className="bg-card border border-border rounded-2xl rounded-tl-md px-4 py-3">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                  </div>
+              {messages.length === 0 && isConnected && (
+                <div className="text-center text-muted-foreground py-8">
+                  <p>마이크로 말씀해주세요! 🎤</p>
+                  <p className="text-sm mt-2">AI가 실시간으로 응답합니다</p>
+                </div>
+              )}
+              {messages.length === 0 && !isConnected && (
+                <div className="text-center text-muted-foreground py-8">
+                  <p>캐릭터 탭에서 "대화 시작" 버튼을 눌러주세요</p>
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -228,21 +275,23 @@ export default function ChatPage() {
       {/* Input */}
       <footer className="sticky bottom-0 bg-background border-t border-border p-4">
         <div className="max-w-lg mx-auto flex gap-2">
-          {/* Mic Button */}
+          {/* Call Toggle Button */}
           <Button
-            onClick={handleMicClick}
-            disabled={isLoading || isPlaying}
+            onClick={handleCallToggle}
+            disabled={isConnecting}
             size="icon"
-            variant={isRecording ? "destructive" : "secondary"}
+            variant={isConnected ? "destructive" : "default"}
             className={cn(
               "rounded-full w-12 h-12 transition-all",
-              isRecording && "animate-pulse"
+              isConnected && "animate-pulse"
             )}
           >
-            {isRecording ? (
-              <MicOff className="w-5 h-5" />
+            {isConnecting ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : isConnected ? (
+              <PhoneOff className="w-5 h-5" />
             ) : (
-              <Mic className="w-5 h-5" />
+              <Phone className="w-5 h-5" />
             )}
           </Button>
           
@@ -250,14 +299,14 @@ export default function ChatPage() {
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder={isRecording ? "녹음 중..." : "메시지를 입력하세요..."}
+            placeholder={isConnected ? "텍스트 입력 또는 마이크로 대화..." : "먼저 대화를 시작해주세요"}
             className="flex-1 rounded-full bg-secondary border-0"
-            disabled={isLoading || isRecording}
+            disabled={!isConnected}
           />
           
           <Button
             onClick={handleSend}
-            disabled={!inputText.trim() || isLoading}
+            disabled={!inputText.trim() || !isConnected}
             size="icon"
             className="rounded-full w-12 h-12"
           >
