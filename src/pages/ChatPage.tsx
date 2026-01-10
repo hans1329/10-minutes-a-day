@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getCharacterById } from '@/data/characters';
 import { getTopicById } from '@/data/topics';
@@ -9,7 +9,7 @@ import { ChatMessage } from '@/components/ChatMessage';
 import { LipSyncAvatar } from '@/components/LipSyncAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, X, Clock, MessageCircle, User } from 'lucide-react';
+import { Send, X, Clock, MessageCircle, User, Mic, MicOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
@@ -30,8 +30,16 @@ export default function ChatPage() {
     topicId,
   });
 
-  const { isPlaying, audioElement, speak } = useVoice({
+  // Handle transcript from voice recording
+  const handleTranscript = useCallback((text: string) => {
+    if (text.trim()) {
+      setInputText(text);
+    }
+  }, []);
+
+  const { isPlaying, isRecording, audioElement, speak, startRecording, stopRecording } = useVoice({
     voiceId: character?.voiceId || 'EXAVITQu4vr4xnSDxMaL',
+    onTranscript: handleTranscript,
   });
 
   const timer = useTimer({
@@ -71,6 +79,14 @@ export default function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleMicClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
   };
 
@@ -212,14 +228,33 @@ export default function ChatPage() {
       {/* Input */}
       <footer className="sticky bottom-0 bg-background border-t border-border p-4">
         <div className="max-w-lg mx-auto flex gap-2">
+          {/* Mic Button */}
+          <Button
+            onClick={handleMicClick}
+            disabled={isLoading || isPlaying}
+            size="icon"
+            variant={isRecording ? "destructive" : "secondary"}
+            className={cn(
+              "rounded-full w-12 h-12 transition-all",
+              isRecording && "animate-pulse"
+            )}
+          >
+            {isRecording ? (
+              <MicOff className="w-5 h-5" />
+            ) : (
+              <Mic className="w-5 h-5" />
+            )}
+          </Button>
+          
           <Input
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="메시지를 입력하세요..."
+            placeholder={isRecording ? "녹음 중..." : "메시지를 입력하세요..."}
             className="flex-1 rounded-full bg-secondary border-0"
-            disabled={isLoading}
+            disabled={isLoading || isRecording}
           />
+          
           <Button
             onClick={handleSend}
             disabled={!inputText.trim() || isLoading}
