@@ -3,13 +3,14 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getCharacterById } from '@/data/characters';
 import { getTopicById } from '@/data/topics';
 import { useRealtimeChat } from '@/hooks/useRealtimeChat';
+import { useSimliChat } from '@/hooks/useSimliChat';
 import { useTimer } from '@/hooks/useTimer';
 import { Message } from '@/types';
 import { ChatMessage } from '@/components/ChatMessage';
-import { LipSyncAvatar } from '@/components/LipSyncAvatar';
+import { SimliAvatar } from '@/components/SimliAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, X, Clock, MessageCircle, User, Phone, PhoneOff } from 'lucide-react';
+import { Send, X, Clock, MessageCircle, User, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
@@ -41,13 +42,15 @@ export default function ChatPage() {
   }, [messageIdCounter]);
 
   const [isSpeakingState, setIsSpeakingState] = useState(false);
+  const [useSimliMode, setUseSimliMode] = useState(true); // Default to Simli avatar
 
+  // OpenAI Realtime for voice chat (audio only mode)
   const { 
-    isConnected, 
-    isConnecting, 
-    isSpeaking,
-    connect, 
-    disconnect, 
+    isConnected: isRealtimeConnected, 
+    isConnecting: isRealtimeConnecting, 
+    isSpeaking: isRealtimeSpeaking,
+    connect: connectRealtime, 
+    disconnect: disconnectRealtime, 
     sendTextMessage,
   } = useRealtimeChat({
     characterId,
@@ -55,6 +58,38 @@ export default function ChatPage() {
     onTranscript: handleTranscript,
     onSpeakingChange: setIsSpeakingState,
   });
+
+  // Simli for avatar visualization
+  const {
+    isConnected: isSimliConnected,
+    isConnecting: isSimliConnecting,
+    isSpeaking: isSimliSpeaking,
+    connect: connectSimli,
+    disconnect: disconnectSimli,
+    setVideoRef,
+    setAudioRef,
+  } = useSimliChat({
+    faceId: character?.faceId || 'tmp9i8bbq7c',
+    onSpeakingChange: setIsSpeakingState,
+  });
+
+  // Combined connection state
+  const isConnected = useSimliMode ? isSimliConnected : isRealtimeConnected;
+  const isConnecting = useSimliMode ? isSimliConnecting : isRealtimeConnecting;
+  const isSpeaking = useSimliMode ? isSimliSpeaking : isRealtimeSpeaking;
+
+  const connect = useCallback(() => {
+    if (useSimliMode) {
+      connectSimli();
+    } else {
+      connectRealtime();
+    }
+  }, [useSimliMode, connectSimli, connectRealtime]);
+
+  const disconnect = useCallback(() => {
+    disconnectSimli();
+    disconnectRealtime();
+  }, [disconnectSimli, disconnectRealtime]);
 
   const timer = useTimer({
     duration: 600,
@@ -75,7 +110,7 @@ export default function ChatPage() {
   }, [messages, showCharacter]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || !isConnected) return;
+    if (!inputText.trim() || !isRealtimeConnected) return;
     const text = inputText;
     setInputText('');
     
@@ -184,12 +219,14 @@ export default function ChatPage() {
         <div className="max-w-lg mx-auto">
           {showCharacter ? (
             <div className="flex flex-col items-center justify-center py-8">
-              {/* Lip Sync Avatar */}
-              <LipSyncAvatar
-                avatarImage={character?.avatarImage}
+              {/* Simli Avatar */}
+              <SimliAvatar
+                setVideoRef={setVideoRef}
+                setAudioRef={setAudioRef}
+                isConnected={isSimliConnected}
+                isSpeaking={isSpeakingState}
+                fallbackImage={character?.avatarImage}
                 color={character?.color}
-                audioElement={null}
-                isPlaying={isSpeakingState}
               />
               
               <h2 className="mt-6 text-2xl font-bold text-foreground">{character?.nameKo}</h2>
@@ -200,6 +237,34 @@ export default function ChatPage() {
               <div className="mt-4 px-4 py-2 bg-secondary rounded-full">
                 <span className="text-sm text-muted-foreground">주제: </span>
                 <span className="text-sm font-medium text-foreground">{topic?.titleKo}</span>
+              </div>
+              
+              {/* Mode Toggle */}
+              <div className="mt-4 flex items-center gap-2">
+                <Button
+                  variant={useSimliMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (!isConnected) setUseSimliMode(true);
+                  }}
+                  disabled={isConnected}
+                  className="rounded-full gap-1"
+                >
+                  <Video className="w-4 h-4" />
+                  영상 아바타
+                </Button>
+                <Button
+                  variant={!useSimliMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (!isConnected) setUseSimliMode(false);
+                  }}
+                  disabled={isConnected}
+                  className="rounded-full gap-1"
+                >
+                  <Phone className="w-4 h-4" />
+                  음성만
+                </Button>
               </div>
               
               {/* Connection Status */}
@@ -218,7 +283,7 @@ export default function ChatPage() {
                       </>
                     ) : (
                       <>
-                        <Phone className="w-5 h-5" />
+                        {useSimliMode ? <Video className="w-5 h-5" /> : <Phone className="w-5 h-5" />}
                         대화 시작
                       </>
                     )}
@@ -230,7 +295,7 @@ export default function ChatPage() {
                     size="lg"
                     className="rounded-full px-8 gap-2"
                   >
-                    <PhoneOff className="w-5 h-5" />
+                    {useSimliMode ? <VideoOff className="w-5 h-5" /> : <PhoneOff className="w-5 h-5" />}
                     대화 종료
                   </Button>
                 )}

@@ -11,16 +11,44 @@ serve(async (req) => {
   }
 
   try {
-    const { faceId } = await req.json();
+    const { faceId, handleSilence = true, maxSessionLength = 600, maxIdleTime = 120 } = await req.json();
     const SIMLI_API_KEY = Deno.env.get('SIMLI_API_KEY');
 
     if (!SIMLI_API_KEY) {
       throw new Error('SIMLI_API_KEY is not configured');
     }
 
-    // Return the API key for client-side Simli SDK initialization
-    // The Simli SDK handles session creation internally
+    console.log('Creating Simli session token for faceId:', faceId);
+
+    // Create session token using Simli API
+    const sessionResponse = await fetch('https://api.simli.ai/startAudioToVideoSession', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        faceId: faceId || 'tmp9i8bbq7c',
+        isJPG: false,
+        apiKey: SIMLI_API_KEY,
+        syncAudio: true,
+        handleSilence,
+        maxSessionLength,
+        maxIdleTime,
+        model: 'fasttalk',
+      }),
+    });
+
+    if (!sessionResponse.ok) {
+      const errorText = await sessionResponse.text();
+      console.error('Simli session creation failed:', sessionResponse.status, errorText);
+      throw new Error(`Simli API error: ${sessionResponse.status}`);
+    }
+
+    const sessionData = await sessionResponse.json();
+    console.log('Session token created:', sessionData);
+
     return new Response(JSON.stringify({
+      session_token: sessionData.session_token,
       apiKey: SIMLI_API_KEY,
       faceId: faceId || 'tmp9i8bbq7c',
     }), {
