@@ -1,25 +1,40 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { SimliClient } from 'simli-client';
+import { useScribe, CommitStrategy } from '@elevenlabs/react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 interface UseSimliChatOptions {
+  characterId: string;
+  topicId: string;
   faceId: string;
+  voiceId: string;
+  onTranscript?: (text: string, role: 'user' | 'assistant') => void;
   onSpeakingChange?: (speaking: boolean) => void;
 }
 
 export function useSimliChat({
+  characterId,
+  topicId,
   faceId,
+  voiceId,
+  onTranscript,
   onSpeakingChange,
 }: UseSimliChatOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const simliClientRef = useRef<SimliClient | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const messagesRef = useRef<Message[]>([]);
 
   // Set up video/audio refs
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
@@ -29,6 +44,85 @@ export function useSimliChat({
   const setAudioRef = useCallback((el: HTMLAudioElement | null) => {
     audioRef.current = el;
   }, []);
+
+  // Process user speech and get AI response
+  const processUserSpeech = useCallback(async (userText: string) => {
+    if (!userText.trim() || isProcessing) return;
+
+    setIsProcessing(true);
+    console.log('Processing user speech:', userText);
+
+    // Add user message to history
+    messagesRef.current.push({ role: 'user', content: userText });
+    onTranscript?.(userText, 'user');
+
+    try {
+      // Get AI response with TTS audio
+      const { data, error } = await supabase.functions.invoke('simli-chat', {
+        body: {
+          messages: messagesRef.current,
+          characterId,
+          voiceId,
+          topicId,
+        },
+      });
+
+      if (error) throw error;
+
+      const { text: aiText, audioBase64 } = data;
+      console.log('AI response:', aiText);
+
+      // Add assistant message to history
+      messagesRef.current.push({ role: 'assistant', content: aiText });
+      onTranscript?.(aiText, 'assistant');
+
+      // Send audio to Simli for lip-sync
+      if (simliClientRef.current && audioBase64) {
+        // Convert base64 to Uint8Array
+        const binaryString = atob(audioBase64);
+        const audioData = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          audioData[i] = binaryString.charCodeAt(i);
+        }
+
+        console.log('Sending audio to Simli, size:', audioData.length);
+        setIsSpeaking(true);
+        onSpeakingChange?.(true);
+        
+        // Send audio data to Simli
+        simliClientRef.current.sendAudioData(audioData);
+
+        // Estimate speaking duration based on audio length (16kHz PCM = 32000 bytes/sec)
+        const durationMs = (audioData.length / 32000) * 1000;
+        setTimeout(() => {
+          setIsSpeaking(false);
+          onSpeakingChange?.(false);
+        }, durationMs + 500);
+      }
+
+    } catch (error) {
+      console.error('Error processing speech:', error);
+      toast({
+        variant: 'destructive',
+        title: '오류',
+        description: error instanceof Error ? error.message : 'AI 응답 생성 실패',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [characterId, topicId, voiceId, isProcessing, onTranscript, onSpeakingChange]);
+
+  // ElevenLabs Scribe for real-time STT
+  const scribe = useScribe({
+    modelId: 'scribe_v2_realtime',
+    commitStrategy: CommitStrategy.VAD,
+    onCommittedTranscript: (data) => {
+      console.log('User said:', data.text);
+      if (data.text.trim()) {
+        processUserSpeech(data.text);
+      }
+    },
+  });
 
   const connect = useCallback(async () => {
     if (isConnected || isConnecting) return;
@@ -42,29 +136,38 @@ export function useSimliChat({
     }
 
     setIsConnecting(true);
+    messagesRef.current = [];
+
     try {
-      // Get Simli session from edge function
+      // Step 1: Get Simli session
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
         'simli-session',
-        {
-          body: { faceId }
-        }
+        { body: { faceId } }
       );
 
       if (sessionError || !sessionData?.session_token) {
-        throw new Error('Failed to get Simli session: ' + (sessionError?.message || 'No session token'));
+        throw new Error('Failed to get Simli session');
       }
 
-      console.log('Got Simli session, initializing...');
+      console.log('Got Simli session');
 
-      // Create Simli client
+      // Step 2: Get ElevenLabs Scribe token
+      const { data: scribeData, error: scribeError } = await supabase.functions.invoke(
+        'elevenlabs-scribe-token'
+      );
+
+      if (scribeError || !scribeData?.token) {
+        throw new Error('Failed to get Scribe token');
+      }
+
+      console.log('Got Scribe token');
+
+      // Step 3: Initialize Simli client
       const simliClient = new SimliClient();
       simliClientRef.current = simliClient;
 
-      // Set up event listeners before initialize
       simliClient.on('connected', () => {
         console.log('Simli connected');
-        setIsConnected(true);
       });
 
       simliClient.on('disconnected', () => {
@@ -75,13 +178,11 @@ export function useSimliChat({
       });
 
       simliClient.on('speaking', () => {
-        console.log('Avatar speaking');
         setIsSpeaking(true);
         onSpeakingChange?.(true);
       });
 
       simliClient.on('silent', () => {
-        console.log('Avatar silent');
         setIsSpeaking(false);
         onSpeakingChange?.(false);
       });
@@ -90,14 +191,11 @@ export function useSimliChat({
         console.error('Simli failed:', reason);
         toast({
           variant: 'destructive',
-          title: '연결 실패',
+          title: 'Simli 연결 실패',
           description: reason || '다시 시도해주세요.',
         });
-        setIsConnected(false);
-        setIsConnecting(false);
       });
 
-      // Configure Simli with proper config
       const simliConfig = {
         apiKey: sessionData.apiKey,
         faceID: faceId,
@@ -117,40 +215,28 @@ export function useSimliChat({
       };
 
       simliClient.Initialize(simliConfig);
-      console.log('Simli initialized');
-
-      // Start the session
       await simliClient.start();
-      console.log('Simli session started');
+      console.log('Simli started');
 
-      // Get microphone access and listen to it
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
+      // Step 4: Connect ElevenLabs Scribe for STT
+      await scribe.connect({
+        token: scribeData.token,
+        microphone: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-        }
+        },
       });
-      streamRef.current = stream;
-      console.log('Microphone access granted');
-
-      // Use Simli's built-in method to listen to microphone
-      const audioTrack = stream.getAudioTracks()[0];
-      if (audioTrack) {
-        simliClient.listenToMediastreamTrack(audioTrack);
-        console.log('Listening to microphone track');
-      }
+      console.log('Scribe connected');
 
       setIsConnected(true);
       toast({
-        title: '🎥 Simli 아바타 연결됨',
-        description: '마이크로 대화하세요!',
+        title: '🎥 실시간 아바타 대화 시작!',
+        description: '마이크로 영어로 말씀해보세요.',
       });
 
     } catch (error) {
-      console.error('Error connecting to Simli:', error);
+      console.error('Error connecting:', error);
       toast({
         variant: 'destructive',
         title: '연결 실패',
@@ -159,14 +245,11 @@ export function useSimliChat({
     } finally {
       setIsConnecting(false);
     }
-  }, [faceId, isConnected, isConnecting, onSpeakingChange]);
+  }, [faceId, isConnected, isConnecting, scribe, onSpeakingChange]);
 
   const disconnect = useCallback(() => {
-    // Stop microphone
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
+    // Disconnect Scribe
+    scribe.disconnect();
 
     // Close Simli client
     if (simliClientRef.current) {
@@ -174,41 +257,29 @@ export function useSimliChat({
       simliClientRef.current = null;
     }
 
+    messagesRef.current = [];
     setIsConnected(false);
     setIsSpeaking(false);
+    setIsProcessing(false);
     onSpeakingChange?.(false);
-    console.log('Disconnected from Simli');
-  }, [onSpeakingChange]);
-
-  // Send audio data (for TTS output from LLM)
-  const sendAudio = useCallback((audioData: Uint8Array) => {
-    if (simliClientRef.current && isConnected) {
-      simliClientRef.current.sendAudioData(audioData);
-    }
-  }, [isConnected]);
-
-  // Clear audio buffer (stop avatar from talking)
-  const clearBuffer = useCallback(() => {
-    if (simliClientRef.current) {
-      simliClientRef.current.ClearBuffer();
-    }
-  }, []);
+    console.log('Disconnected');
+  }, [scribe, onSpeakingChange]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       disconnect();
     };
-  }, [disconnect]);
+  }, []);
 
   return {
     isConnected,
     isConnecting,
     isSpeaking,
+    isProcessing,
+    partialTranscript: scribe.partialTranscript,
     connect,
     disconnect,
-    sendAudio,
-    clearBuffer,
     setVideoRef,
     setAudioRef,
   };
