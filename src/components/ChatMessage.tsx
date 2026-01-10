@@ -5,11 +5,12 @@ import { Volume2 } from 'lucide-react';
 interface ChatMessageProps {
   message: Message;
   characterEmoji?: string;
+  characterImage?: string;
   onPlayAudio?: () => void;
   isPlaying?: boolean;
 }
 
-export function ChatMessage({ message, characterEmoji, onPlayAudio, isPlaying }: ChatMessageProps) {
+export function ChatMessage({ message, characterEmoji, characterImage, onPlayAudio, isPlaying }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
   return (
@@ -21,11 +22,17 @@ export function ChatMessage({ message, characterEmoji, onPlayAudio, isPlaying }:
     >
       <div
         className={cn(
-          'w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0',
+          'w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 overflow-hidden',
           isUser ? 'bg-primary' : 'bg-secondary'
         )}
       >
-        {isUser ? '🙋' : characterEmoji || '🤖'}
+        {isUser ? (
+          '🙋'
+        ) : characterImage ? (
+          <img src={characterImage} alt="Character" className="w-full h-full object-cover" />
+        ) : (
+          characterEmoji || '🤖'
+        )}
       </div>
       <div
         className={cn(
