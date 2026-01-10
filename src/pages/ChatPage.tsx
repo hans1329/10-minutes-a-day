@@ -1,21 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getCharacterById } from '@/data/characters';
 import { getTopicById } from '@/data/topics';
 import { useChat } from '@/hooks/useChat';
-import { useVoice } from '@/hooks/useVoice';
+import { useSimli } from '@/hooks/useSimli';
 import { useTimer } from '@/hooks/useTimer';
 import { ChatMessage } from '@/components/ChatMessage';
+import { AvatarVideo } from '@/components/AvatarVideo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, X, Clock, MessageCircle, User } from 'lucide-react';
+import { Send, X, Clock, MessageCircle, User, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
-  const [showCharacter, setShowCharacter] = useState(false);
+  const [showCharacter, setShowCharacter] = useState(true); // Start with character view
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const characterId = searchParams.get('character') || 'jimin';
@@ -29,7 +30,14 @@ export default function ChatPage() {
     topicId,
   });
 
-  const { isPlaying, speak } = useVoice({
+  const { 
+    isConnected, 
+    isSpeaking, 
+    isLoading: isSimliLoading,
+    initializeSimli, 
+    speak 
+  } = useSimli({
+    faceId: character?.faceId || 'tmp9i8bbq7c',
     voiceId: character?.voiceId || 'EXAVITQu4vr4xnSDxMaL',
   });
 
@@ -38,14 +46,33 @@ export default function ChatPage() {
     onComplete: () => navigate(`/summary?character=${characterId}&topic=${topicId}`),
   });
 
+  // Handle video/audio refs for Simli
+  const handleVideoRef = useCallback((video: HTMLVideoElement, audio: HTMLAudioElement) => {
+    initializeSimli(video, audio);
+  }, [initializeSimli]);
+
+  // Start conversation when component mounts
   useEffect(() => {
     startConversation();
     timer.start();
   }, []);
 
+  // Speak new assistant messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant') {
+        speak(lastMessage.content);
+      }
+    }
+  }, [messages, speak]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (!showCharacter) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, showCharacter]);
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
@@ -80,6 +107,7 @@ export default function ChatPage() {
               <span className="text-2xl">{character?.avatar}</span>
             )}
             <span className="font-medium">{character?.nameKo}</span>
+            {isSimliLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
           </div>
           <div className={cn(
             'flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium',
@@ -134,43 +162,35 @@ export default function ChatPage() {
       <main className="flex-1 overflow-y-auto p-4">
         <div className="max-w-lg mx-auto">
           {showCharacter ? (
-            /* Character View */
+            /* Character View with Live Avatar */
             <div className="flex flex-col items-center justify-center py-8">
-              <div className={cn(
-                'relative w-64 h-64 rounded-full overflow-hidden shadow-2xl',
-                `bg-gradient-to-br ${character?.color}`
-              )}>
-                {character?.avatarImage ? (
-                  <img 
-                    src={character.avatarImage} 
-                    alt={character.nameKo}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-8xl">
-                    {character?.avatar}
-                  </div>
-                )}
-                {/* Speaking indicator */}
-                {isPlaying && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <div className="flex gap-1">
-                      <span className="w-3 h-8 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
-                      <span className="w-3 h-12 bg-primary rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
-                      <span className="w-3 h-6 bg-primary rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
-                      <span className="w-3 h-10 bg-primary rounded-full animate-pulse" style={{ animationDelay: '450ms' }} />
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AvatarVideo
+                avatarImage={character?.avatarImage}
+                color={character?.color}
+                isSpeaking={isSpeaking}
+                isConnected={isConnected}
+                onVideoRef={handleVideoRef}
+              />
+              
               <h2 className="mt-6 text-2xl font-bold text-foreground">{character?.nameKo}</h2>
               <p className="text-primary font-medium">{character?.personality}</p>
               <p className="mt-2 text-sm text-muted-foreground text-center max-w-xs">
                 {character?.description}
               </p>
+              
               <div className="mt-4 px-4 py-2 bg-secondary rounded-full">
                 <span className="text-sm text-muted-foreground">주제: </span>
                 <span className="text-sm font-medium text-foreground">{topic?.titleKo}</span>
+              </div>
+              
+              {/* Connection Status */}
+              <div className={cn(
+                'mt-4 px-3 py-1 rounded-full text-xs',
+                isConnected 
+                  ? 'bg-green-500/20 text-green-400' 
+                  : 'bg-yellow-500/20 text-yellow-400'
+              )}>
+                {isConnected ? '🟢 실시간 연결됨' : '⏳ 연결 중...'}
               </div>
               
               {/* Last message preview */}
@@ -192,7 +212,7 @@ export default function ChatPage() {
                   characterEmoji={character?.avatar}
                   characterImage={character?.avatarImage}
                   onPlayAudio={msg.role === 'assistant' ? () => speak(msg.content) : undefined}
-                  isPlaying={isPlaying}
+                  isPlaying={isSpeaking}
                 />
               ))}
               {isLoading && (

@@ -7,6 +7,7 @@ export interface Character {
   avatar: string;
   avatarImage?: string;
   voiceId: string;
+  faceId?: string;
   color: string;
 }
 
