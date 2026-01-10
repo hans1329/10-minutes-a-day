@@ -1,9 +1,12 @@
-import { Message } from '@/types';
 import { cn } from '@/lib/utils';
 import { Volume2 } from 'lucide-react';
 
 interface ChatMessageProps {
-  message: Message;
+  message: {
+    id: number | string;
+    role: 'user' | 'assistant';
+    content: string;
+  };
   characterEmoji?: string;
   characterImage?: string;
   onPlayAudio?: () => void;
