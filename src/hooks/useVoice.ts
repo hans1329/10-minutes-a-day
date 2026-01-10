@@ -9,7 +9,7 @@ interface UseVoiceOptions {
 export function useVoice({ voiceId, onTranscript }: UseVoiceOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -38,24 +38,25 @@ export function useVoice({ voiceId, onTranscript }: UseVoiceOptions) {
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
       
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      const audio = new Audio(audioUrl);
+      setAudioElement(audio);
       
-      audioRef.current = new Audio(audioUrl);
-      audioRef.current.onended = () => {
+      audio.onended = () => {
         setIsPlaying(false);
+        setAudioElement(null);
         URL.revokeObjectURL(audioUrl);
       };
-      audioRef.current.onerror = () => {
+      audio.onerror = () => {
         setIsPlaying(false);
+        setAudioElement(null);
         URL.revokeObjectURL(audioUrl);
       };
       
-      await audioRef.current.play();
+      await audio.play();
     } catch (error) {
       console.error('TTS error:', error);
       setIsPlaying(false);
+      setAudioElement(null);
       toast({
         variant: 'destructive',
         title: '음성 재생 실패',
@@ -65,12 +66,13 @@ export function useVoice({ voiceId, onTranscript }: UseVoiceOptions) {
   }, [voiceId, isPlaying]);
 
   const stopSpeaking = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      setAudioElement(null);
       setIsPlaying(false);
     }
-  }, []);
+  }, [audioElement]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -89,10 +91,7 @@ export function useVoice({ voiceId, onTranscript }: UseVoiceOptions) {
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
         stream.getTracks().forEach(track => track.stop());
         
-        // For now, we'll use Web Speech API for transcription as a fallback
-        // since ElevenLabs STT requires WebSocket setup
         if (onTranscript) {
-          // Simple fallback - user can type instead
           toast({
             title: '녹음 완료',
             description: '텍스트로 입력해주세요.',
@@ -129,6 +128,7 @@ export function useVoice({ voiceId, onTranscript }: UseVoiceOptions) {
   return {
     isPlaying,
     isRecording,
+    audioElement,
     speak,
     stopSpeaking,
     startRecording,
