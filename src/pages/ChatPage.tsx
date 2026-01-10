@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getCharacterById } from '@/data/characters';
 import { getTopicById } from '@/data/topics';
@@ -6,6 +6,7 @@ import { useChat } from '@/hooks/useChat';
 import { useVoice } from '@/hooks/useVoice';
 import { useTimer } from '@/hooks/useTimer';
 import { ChatMessage } from '@/components/ChatMessage';
+import { LipSyncAvatar } from '@/components/LipSyncAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, X, Clock, MessageCircle, User } from 'lucide-react';
@@ -29,7 +30,7 @@ export default function ChatPage() {
     topicId,
   });
 
-  const { isPlaying, speak } = useVoice({
+  const { isPlaying, audioElement, speak } = useVoice({
     voiceId: character?.voiceId || 'EXAVITQu4vr4xnSDxMaL',
   });
 
@@ -146,33 +147,14 @@ export default function ChatPage() {
         <div className="max-w-lg mx-auto">
           {showCharacter ? (
             <div className="flex flex-col items-center justify-center py-8">
-              <div className={cn(
-                'relative w-64 h-64 rounded-full overflow-hidden shadow-2xl',
-                `bg-gradient-to-br ${character?.color}`
-              )}>
-                {character?.avatarImage ? (
-                  <img 
-                    src={character.avatarImage} 
-                    alt={character.nameKo}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-8xl">
-                    {character?.avatar}
-                  </div>
-                )}
-                {/* Speaking indicator */}
-                {isPlaying && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <div className="flex gap-1">
-                      <span className="w-3 h-8 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
-                      <span className="w-3 h-12 bg-primary rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
-                      <span className="w-3 h-6 bg-primary rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
-                      <span className="w-3 h-10 bg-primary rounded-full animate-pulse" style={{ animationDelay: '450ms' }} />
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Lip Sync Avatar */}
+              <LipSyncAvatar
+                avatarImage={character?.avatarImage}
+                color={character?.color}
+                audioElement={audioElement}
+                isPlaying={isPlaying}
+              />
+              
               <h2 className="mt-6 text-2xl font-bold text-foreground">{character?.nameKo}</h2>
               <p className="text-primary font-medium">{character?.personality}</p>
               <p className="mt-2 text-sm text-muted-foreground text-center max-w-xs">
