@@ -5,6 +5,7 @@ export interface Character {
   personality: string;
   description: string;
   avatar: string;
+  avatarImage?: string;
   voiceId: string;
   color: string;
 }

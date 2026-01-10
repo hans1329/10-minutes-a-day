@@ -22,11 +22,15 @@ export function CharacterCard({ character, isSelected, onClick }: CharacterCardP
       <div className="flex items-center gap-4">
         <div
           className={cn(
-            'w-16 h-16 rounded-full flex items-center justify-center text-3xl',
+            'w-16 h-16 rounded-full flex items-center justify-center text-3xl overflow-hidden',
             `bg-gradient-to-br ${character.color}`
           )}
         >
-          {character.avatar}
+          {character.avatarImage ? (
+            <img src={character.avatarImage} alt={character.nameKo} className="w-full h-full object-cover" />
+          ) : (
+            character.avatar
+          )}
         </div>
         <div className="flex-1 text-left">
           <div className="flex items-center gap-2">
