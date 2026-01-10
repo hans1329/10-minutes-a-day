@@ -107,7 +107,7 @@ export default function Index() {
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
         <div className="max-w-lg mx-auto flex">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/learn')}
             className="flex-1 flex flex-col items-center py-3 text-primary"
           >
             <Flame className="w-6 h-6" />
