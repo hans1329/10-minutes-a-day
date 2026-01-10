@@ -52,7 +52,18 @@ export function useVoice({ voiceId, onTranscript }: UseVoiceOptions) {
         URL.revokeObjectURL(audioUrl);
       };
       
-      await audio.play();
+      // Try to play, handle autoplay restrictions gracefully
+      try {
+        await audio.play();
+      } catch (playError) {
+        // Autoplay blocked - this is expected on first load
+        console.log('Autoplay blocked, waiting for user interaction');
+        setIsPlaying(false);
+        setAudioElement(null);
+        URL.revokeObjectURL(audioUrl);
+        // Don't show error toast for autoplay restrictions
+        return;
+      }
     } catch (error) {
       console.error('TTS error:', error);
       setIsPlaying(false);
