@@ -59,17 +59,23 @@ export default function ChatPage() {
     onSpeakingChange: setIsSpeakingState,
   });
 
-  // Simli for avatar visualization
+  // Simli for avatar visualization with AI conversation
   const {
     isConnected: isSimliConnected,
     isConnecting: isSimliConnecting,
     isSpeaking: isSimliSpeaking,
+    isProcessing,
+    partialTranscript,
     connect: connectSimli,
     disconnect: disconnectSimli,
     setVideoRef,
     setAudioRef,
   } = useSimliChat({
+    characterId,
+    topicId,
     faceId: character?.faceId || 'tmp9i8bbq7c',
+    voiceId: character?.voiceId || 'EXAVITQu4vr4xnSDxMaL',
+    onTranscript: handleTranscript,
     onSpeakingChange: setIsSpeakingState,
   });
 
@@ -301,8 +307,25 @@ export default function ChatPage() {
                 )}
               </div>
               
+              {/* Processing indicator */}
+              {isProcessing && (
+                <div className="mt-4 flex items-center gap-2 text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">AI 응답 생성 중...</span>
+                </div>
+              )}
+              
+              {/* Partial transcript (what user is saying) */}
+              {partialTranscript && (
+                <div className="mt-4 p-3 bg-secondary/50 border border-border rounded-xl max-w-xs">
+                  <p className="text-xs text-muted-foreground mb-1">듣는 중...</p>
+                  <p className="text-sm text-foreground">{partialTranscript}</p>
+                </div>
+              )}
+              
+              {/* Last assistant message */}
               {messages.length > 0 && messages[messages.length - 1].role === 'assistant' && (
-                <div className="mt-6 p-4 bg-card border border-border rounded-2xl max-w-xs">
+                <div className="mt-4 p-4 bg-card border border-border rounded-2xl max-w-xs">
                   <p className="text-sm text-foreground line-clamp-3">
                     "{messages[messages.length - 1].content}"
                   </p>

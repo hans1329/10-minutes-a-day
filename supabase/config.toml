@@ -55,3 +55,6 @@ verify_jwt = false
 
 [functions.openai-realtime-token]
 verify_jwt = false
+
+[functions.simli-chat]
+verify_jwt = false
