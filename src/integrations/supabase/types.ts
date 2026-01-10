@@ -14,7 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attendance: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          session_count: number | null
+          total_duration_seconds: number | null
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          session_count?: number | null
+          total_duration_seconds?: number | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          session_count?: number | null
+          total_duration_seconds?: number | null
+        }
+        Relationships: []
+      }
+      learned_expressions: {
+        Row: {
+          category: string
+          created_at: string
+          english: string
+          example_sentence: string | null
+          id: string
+          korean: string
+          last_reviewed_at: string | null
+          learned_count: number | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          english: string
+          example_sentence?: string | null
+          id?: string
+          korean: string
+          last_reviewed_at?: string | null
+          learned_count?: number | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          english?: string
+          example_sentence?: string | null
+          id?: string
+          korean?: string
+          last_reviewed_at?: string | null
+          learned_count?: number | null
+        }
+        Relationships: []
+      }
+      learning_sessions: {
+        Row: {
+          character_id: string
+          created_at: string
+          duration_seconds: number
+          expressions_learned: Json | null
+          id: string
+          topic_id: string
+        }
+        Insert: {
+          character_id: string
+          created_at?: string
+          duration_seconds?: number
+          expressions_learned?: Json | null
+          id?: string
+          topic_id: string
+        }
+        Update: {
+          character_id?: string
+          created_at?: string
+          duration_seconds?: number
+          expressions_learned?: Json | null
+          id?: string
+          topic_id?: string
+        }
+        Relationships: []
+      }
+      learning_stats: {
+        Row: {
+          current_streak: number | null
+          id: string
+          longest_streak: number | null
+          total_duration_seconds: number | null
+          total_expressions_learned: number | null
+          total_sessions: number | null
+          updated_at: string
+        }
+        Insert: {
+          current_streak?: number | null
+          id?: string
+          longest_streak?: number | null
+          total_duration_seconds?: number | null
+          total_expressions_learned?: number | null
+          total_sessions?: number | null
+          updated_at?: string
+        }
+        Update: {
+          current_streak?: number | null
+          id?: string
+          longest_streak?: number | null
+          total_duration_seconds?: number | null
+          total_expressions_learned?: number | null
+          total_sessions?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
