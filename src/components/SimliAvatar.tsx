@@ -28,7 +28,7 @@ export function SimliAvatar({
 
   return (
     <div className={cn(
-      'relative w-64 h-64 rounded-full overflow-hidden shadow-2xl',
+      'relative w-full max-w-sm aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl',
       `bg-gradient-to-br ${color}`
     )}>
       {/* Fallback image when not connected */}
@@ -59,10 +59,10 @@ export function SimliAvatar({
         className="hidden"
       />
 
-      {/* Speaking indicator ring */}
+      {/* Speaking indicator border */}
       {isSpeaking && (
         <div 
-          className="absolute inset-0 rounded-full border-4 border-primary animate-pulse"
+          className="absolute inset-0 rounded-2xl border-4 border-primary animate-pulse pointer-events-none"
           style={{ 
             boxShadow: `0 0 30px rgba(34, 197, 94, 0.5)` 
           }}
@@ -71,21 +71,21 @@ export function SimliAvatar({
 
       {/* Connection indicator */}
       {isConnected && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full">
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/60 px-3 py-1.5 rounded-full">
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-xs text-white">LIVE</span>
+          <span className="text-xs font-medium text-white">LIVE</span>
         </div>
       )}
 
       {/* Audio wave visualization when speaking */}
       {isSpeaking && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-end gap-0.5 h-8">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-end gap-1 h-10 bg-black/40 px-4 py-2 rounded-full">
           {[...Array(7)].map((_, i) => (
             <span 
               key={i}
-              className="w-1 bg-primary rounded-full animate-pulse"
+              className="w-1.5 bg-primary rounded-full animate-pulse"
               style={{ 
-                height: `${8 + Math.sin(Date.now() / 100 + i * 0.8) * 12}px`,
+                height: `${10 + Math.sin(Date.now() / 100 + i * 0.8) * 14}px`,
                 animationDelay: `${i * 0.1}s`,
               }} 
             />
