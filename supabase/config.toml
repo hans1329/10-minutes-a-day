@@ -43,3 +43,6 @@ verify_jwt = false
 
 [functions.simli-avatar]
 verify_jwt = false
+
+[functions.simli-session]
+verify_jwt = false

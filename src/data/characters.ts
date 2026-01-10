@@ -13,6 +13,7 @@ export const characters: Character[] = [
     avatar: '👩‍🦰',
     avatarImage: avatarJimin,
     voiceId: 'EXAVITQu4vr4xnSDxMaL', // Sarah - friendly female
+    faceId: 'tmp9i8bbq7c', // Simli face ID for female character
     color: 'from-pink-500 to-rose-500',
   },
   {
@@ -24,6 +25,7 @@ export const characters: Character[] = [
     avatar: '😎',
     avatarImage: avatarMinwoo,
     voiceId: 'TX3LPaxmHKxFdv7VOQHJ', // Liam - casual male
+    faceId: 'tmp9i8bbq7c', // Simli face ID for male character
     color: 'from-blue-500 to-cyan-500',
   },
   {
@@ -35,6 +37,7 @@ export const characters: Character[] = [
     avatar: '🧑‍🎓',
     avatarImage: avatarSoyeon,
     voiceId: 'XrExE9yKIg1WjnnlVkGX', // Matilda - calm female
+    faceId: 'tmp9i8bbq7c', // Simli face ID for female character
     color: 'from-purple-500 to-violet-500',
   },
 ];
