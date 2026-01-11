@@ -128,8 +128,10 @@ serve(async (req) => {
     console.log('AI response:', aiText);
 
     // Step 2: Convert text to speech using ElevenLabs (PCM format for Simli)
+    // IMPORTANT: output_format MUST be passed as query parameter, NOT in body
+    const selectedVoice = voiceId || 'EXAVITQu4vr4xnSDxMaL';
     const ttsResponse = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId || 'EXAVITQu4vr4xnSDxMaL'}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}?output_format=pcm_16000`,
       {
         method: 'POST',
         headers: {
@@ -138,8 +140,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           text: aiText,
-          model_id: 'eleven_turbo_v2_5',
-          output_format: 'pcm_16000', // 16kHz PCM for Simli
+          model_id: 'eleven_multilingual_v2',
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.75,
