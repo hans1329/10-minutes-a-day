@@ -360,45 +360,35 @@ export default function ChatPage() {
         </div>
       </main>
 
-      {/* Input */}
+      {/* Voice-only footer - no text input */}
       <footer className="sticky bottom-0 bg-background border-t border-border p-4">
-        <div className="max-w-lg mx-auto flex gap-2">
-          {/* Call Toggle Button */}
+        <div className="max-w-lg mx-auto flex justify-center">
           <Button
             onClick={handleCallToggle}
             disabled={isConnecting}
-            size="icon"
+            size="lg"
             variant={isConnected ? "destructive" : "default"}
             className={cn(
-              "rounded-full w-12 h-12 transition-all",
+              "rounded-full px-8 gap-2 transition-all",
               isConnected && "animate-pulse"
             )}
           >
             {isConnecting ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                연결 중...
+              </>
             ) : isConnected ? (
-              <PhoneOff className="w-5 h-5" />
+              <>
+                {useSimliMode ? <VideoOff className="w-5 h-5" /> : <PhoneOff className="w-5 h-5" />}
+                대화 종료
+              </>
             ) : (
-              <Phone className="w-5 h-5" />
+              <>
+                {useSimliMode ? <Video className="w-5 h-5" /> : <Phone className="w-5 h-5" />}
+                대화 시작
+              </>
             )}
-          </Button>
-          
-          <Input
-            value={inputText}
-            onChange={e => setInputText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={isConnected ? "텍스트 입력 또는 마이크로 대화..." : "먼저 대화를 시작해주세요"}
-            className="flex-1 rounded-full bg-secondary border-0"
-            disabled={!isConnected}
-          />
-          
-          <Button
-            onClick={handleSend}
-            disabled={!inputText.trim() || !isConnected}
-            size="icon"
-            className="rounded-full w-12 h-12"
-          >
-            <Send className="w-5 h-5" />
           </Button>
         </div>
       </footer>
