@@ -45,6 +45,61 @@ export function useSimliChat({
     audioRef.current = el;
   }, []);
 
+  // Trigger initial greeting from character when session starts
+  const triggerInitialGreeting = useCallback(async () => {
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    console.log('Triggering initial greeting...');
+
+    try {
+      // Call AI with empty messages to trigger greeting
+      const { data, error } = await supabase.functions.invoke('simli-chat', {
+        body: {
+          messages: [],
+          characterId,
+          voiceId,
+          topicId,
+          isGreeting: true,
+        },
+      });
+
+      if (error) throw error;
+
+      const { text: aiText, audioBase64 } = data;
+      console.log('Character greeting:', aiText);
+
+      // Add assistant message to history
+      messagesRef.current.push({ role: 'assistant', content: aiText });
+      onTranscript?.(aiText, 'assistant');
+
+      // Send audio to Simli for lip-sync
+      if (simliClientRef.current && audioBase64) {
+        const binaryString = atob(audioBase64);
+        const audioData = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          audioData[i] = binaryString.charCodeAt(i);
+        }
+
+        console.log('Sending greeting audio to Simli, size:', audioData.length);
+        setIsSpeaking(true);
+        onSpeakingChange?.(true);
+        
+        simliClientRef.current.sendAudioData(audioData);
+
+        const durationMs = (audioData.length / 32000) * 1000;
+        setTimeout(() => {
+          setIsSpeaking(false);
+          onSpeakingChange?.(false);
+        }, durationMs + 500);
+      }
+    } catch (error) {
+      console.error('Error triggering greeting:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [characterId, topicId, voiceId, isProcessing, onTranscript, onSpeakingChange]);
+
   // Process user speech and get AI response
   const processUserSpeech = useCallback(async (userText: string) => {
     if (!userText.trim() || isProcessing) return;
@@ -237,8 +292,11 @@ export function useSimliChat({
       setIsConnected(true);
       toast({
         title: '🎥 실시간 아바타 대화 시작!',
-        description: '마이크로 영어로 말씀해보세요.',
+        description: '캐릭터가 먼저 인사합니다.',
       });
+
+      // Trigger initial greeting from character
+      triggerInitialGreeting();
 
     } catch (error) {
       console.error('Error connecting:', error);
