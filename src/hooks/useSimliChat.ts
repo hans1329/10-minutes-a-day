@@ -156,8 +156,13 @@ export function useSimliChat({
         'elevenlabs-scribe-token'
       );
 
-      if (scribeError || !scribeData?.token) {
-        throw new Error('Failed to get Scribe token');
+      if (scribeError) {
+        // Surface the real HTTP status/body (e.g. 401) instead of hiding it.
+        throw new Error(scribeError.message);
+      }
+
+      if (!scribeData?.token) {
+        throw new Error('Scribe token is missing from response');
       }
 
       console.log('Got Scribe token');

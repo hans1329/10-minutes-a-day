@@ -32,7 +32,23 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('ElevenLabs token error:', response.status, errorText);
-      throw new Error(`Token generation failed: ${response.status}`);
+
+      // Return upstream status (e.g. 401) to the client for clearer debugging.
+      const friendlyError =
+        response.status === 401
+          ? 'ElevenLabs unauthorized (401). Ensure your API key has Speech-to-Text permissions enabled.'
+          : `Token generation failed: ${response.status}`;
+
+      return new Response(
+        JSON.stringify({
+          error: friendlyError,
+          upstream: errorText?.slice(0, 500) ?? null,
+        }),
+        {
+          status: response.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     const data = await response.json();
